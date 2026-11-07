@@ -1,50 +1,45 @@
 # Tehran Smart Route Planner
-### Real-World Pathfinding, Traffic Simulation & Route Optimization
+### Graph-Based Pathfinding & Traffic Simulation Using OpenStreetMap
 
-A Python-based pathfinding system built on the real road network of **Tehran, Iran**, using OpenStreetMap (OSM) data.
+A Python-based pathfinding project built on **Tehran's real-world road network**, combining graph theory, search algorithms, geospatial data processing, and simulated traffic conditions.
 
-The project combines graph theory, classical search algorithms, geospatial data processing, and traffic simulation to explore and compare different route-finding strategies.
+The system extracts road network data from OpenStreetMap, constructs a navigable graph, simulates traffic intensity, and compares two pathfinding algorithms: **Depth-First Search (DFS)** and **traffic-aware A* Search**.
 
-It implements **Depth-First Search (DFS)** and **traffic-aware A\* Search**, visualizing their results on an interactive map with support for dynamic road closures and draggable start/destination markers.
+It also features simulated road closures and interactive map visualization using `ipyleaflet`.
 
-## Overview
+## Project Overview
 
-The system processes real-world geographic data to construct a navigable road network of Tehran. It then simulates traffic conditions across road segments and evaluates alternative routes using two different search algorithms.
+The main objective is to explore how classical graph search algorithms perform on a large, real-world road network under different routing conditions.
 
-Users can interact with the map, select starting and destination locations, simulate road closures, and visually compare the resulting routes.
+The project allows users to:
 
-### Key Features
-
-- **Real-World Road Network:** Extracts Tehran's driving network from OpenStreetMap data.
-- **Graph Construction:** Converts geographic road data into a NetworkX `MultiDiGraph`.
-- **Traffic Simulation:** Generates spatially varying traffic conditions using a Gaussian-based model.
-- **Dynamic Road Closures:** Simulates blocked roads, including Zeinoddin Highway.
-- **Interactive Map:** Supports draggable markers for selecting starting points and destinations.
-- **DFS Pathfinding:** Implements Depth-First Search for route discovery.
-- **Traffic-Aware A\* Search:** Implements A* with geographic heuristics and traffic-weighted edge costs.
-- **Route Comparison:** Evaluates routes using actual distance and traffic-weighted distance.
-- **Interactive Visualization:** Displays traffic intensity and both algorithmic routes on Tehran's map.
+- Load and process Tehran's road network from OpenStreetMap.
+- Represent the road network as a directed graph.
+- Simulate geographically distributed traffic conditions.
+- Block selected road segments, including a designated Zeinoddin Highway node.
+- Select starting points and destinations using draggable map markers.
+- Find routes using custom DFS and A* implementations.
+- Compare route distances and traffic-weighted costs.
+- Visualize traffic conditions and calculated routes on interactive maps.
 
 ## Technologies & Libraries
 
 | Technology | Purpose |
 |---|---|
 | Python | Core implementation |
-| OpenStreetMap (OSM) | Real-world geographic and road data |
-| Pyrosm | Loading and parsing OSM data |
-| NetworkX | Road network graph representation |
+| OpenStreetMap | Geographic and road network data |
+| Pyrosm | OSM data extraction and processing |
+| NetworkX | Graph representation and traversal |
 | OSMnx | Geographic nearest-node lookup |
+| Geopy | Geodesic distance calculations |
 | ipyleaflet | Interactive map visualization |
-| NumPy | Numerical computations and traffic simulation |
-| Geospatial libraries | Geographic distance and coordinate processing |
+| Jupyter Notebook | Development and execution environment |
 
-## System Architecture & Workflow
+## System Workflow
 
-The project follows a multi-stage workflow, from geographic data extraction to route visualization.
+### 1. OpenStreetMap Data Extraction
 
-### 1. Loading OpenStreetMap Data
-
-Tehran's road network is extracted from an OSM `.osm.pbf` file using Pyrosm.
+Tehran's road network is loaded from an OSM `.osm.pbf` file using Pyrosm.
 
 ```python
 from pyrosm import OSM
@@ -59,67 +54,80 @@ nodes, roads = osm.get_network(
 Graph = osm.to_graph(nodes, roads, "networkx")
 ```
 
-The resulting graph is a NetworkX `MultiDiGraph` containing geographic nodes and directed road edges.
+The extracted road network is represented as a NetworkX `MultiDiGraph`.
 
-Each road segment includes relevant metadata, such as:
+Each node contains geographic coordinates, while road edges include attributes such as:
 
-- Geographic length
+- Road length
 - Highway classification
-- One-way restrictions
-- Additional OpenStreetMap attributes
+- One-way information
+- Additional OpenStreetMap metadata
 
 ### 2. Gaussian-Based Traffic Simulation
 
-To simulate spatial variations in traffic intensity, a Gaussian-based model is centered around **Enghelab Square** in Tehran.
+To simulate spatial variations in traffic intensity, a Gaussian distribution is centered around Enghelab Square in Tehran.
 
-For each selected road segment:
+The traffic model considers the geographic midpoint of each road segment and its distance from the traffic center.
 
-1. Calculate the segment midpoint.
-2. Compute its geographic distance from Enghelab Square.
-3. Apply Gaussian decay to model traffic intensity.
-4. Introduce random noise to create variation.
-5. Assign a traffic category.
+The intensity is calculated using:
 
-Three traffic levels are generated:
+\[
+I = e^{-\frac{d^2}{2\sigma^2}} + \epsilon
+\]
 
-| Traffic Level | A* Cost Multiplier |
-|---|---:|
-| Low | ×1 |
-| Medium | ×2 |
-| High | ×4 |
-| Blocked | Excluded |
+Where:
 
-Only 1% of sampled road edges are displayed on the traffic visualization map to keep the visualization manageable.
+- \(d\) represents the coordinate-based distance from Enghelab Square.
+- \(\sigma\) controls the spatial distribution of traffic.
+- \(\epsilon\) represents random Gaussian noise.
 
-**Note:** Traffic conditions are simulated rather than retrieved from live traffic services.
+The generated intensity is clipped to the range [0, 1].
+
+Traffic is classified into three categories:
+
+| Category | Intensity |
+|---|---|
+| High | Greater than 0.68 |
+| Medium | Greater than 0.38 |
+| Low | Otherwise |
+
+The simulated traffic is assigned directly to road edges and later used by the A* algorithm.
+
+For visualization, approximately 1% of the high- and medium-traffic edges are randomly sampled and displayed as map markers.
+
+**Note:** Traffic conditions are simulated and are not retrieved from live traffic services.
 
 ### 3. Dynamic Road Closures
 
-The project simulates road closures by marking all edges connected to a specific node representing **Zeinoddin Highway** as inaccessible.
+The project simulates a road closure using a designated OpenStreetMap node ID representing the Zeinoddin Highway area.
+
+The corresponding outgoing edges are marked as inaccessible:
 
 ```python
-d['access'] = 'no'
-d['traffic'] = 'blocked'
+d["access"] = "no"
+d["traffic"] = "blocked"
 ```
 
-Blocked road segments are excluded from both DFS and A* route searches.
+Both DFS and A* check edge accessibility and avoid blocked connections during route discovery.
 
-The algorithms must therefore find alternative routes whenever the original route is affected by a closure.
+This allows the system to explore alternative paths when selected road segments become unavailable.
 
-### 4. Interactive Start & Destination Selection
+### 4. Interactive Start and Destination Selection
 
-The system uses `ipyleaflet` to provide an interactive map with two draggable markers:
+The project uses `ipyleaflet` to create an interactive map with two draggable markers:
 
-- **Start:** Represents the starting location (Home).
-- **Destination:** Represents the target location (Parking).
+- **Origin:** Starting location, initially near Enghelab Square.
+- **Destination:** Target location, initially near the university parking area.
 
-Moving either marker automatically updates its geographic coordinates and maps its new position to the nearest road network node.
+Both markers can be moved to different geographic locations.
 
-This allows users to experiment with different routes without manually specifying graph node IDs.
+Their coordinates are then mapped to the nearest nodes in the road network.
+
+The marker positions must be reprocessed by executing the corresponding notebook cells before running the pathfinding algorithms again.
 
 ### 5. Geographic Node Mapping
 
-The selected coordinates are mapped to their nearest graph nodes using OSMnx:
+The geographic coordinates of each marker are converted into graph node IDs using OSMnx:
 
 ```python
 nearest = ox.nearest_nodes(
@@ -129,32 +137,35 @@ nearest = ox.nearest_nodes(
 )
 ```
 
-The resulting node IDs are passed to the pathfinding algorithms.
+These node IDs are used as the source and destination for the search algorithms.
 
 ## Pathfinding Algorithms
 
-The project implements and compares two graph search algorithms with different optimization strategies.
-
 ### 1. Depth-First Search (DFS)
 
-A stack-based Depth-First Search implementation is used to discover a valid path between the selected nodes.
+A custom DFS implementation is developed using pure Python without external pathfinding libraries.
 
-Key characteristics:
+The algorithm uses a stack-based traversal strategy to explore the road network and discover a path between two nodes.
 
-- Stack-based graph traversal.
+**Implementation details:**
+
+- Stack-based LIFO exploration.
+- Visited-node tracking.
 - Blocked-edge filtering.
 - Path reconstruction.
-- Calculation of the resulting route's actual geographic distance.
+- Calculation of the resulting route's geographic distance.
 
-DFS does not consider traffic conditions or optimize route length. Consequently, the path it discovers may be significantly longer than an optimized alternative.
+DFS does not consider road length or traffic intensity when selecting its path.
+
+As a result, it may discover a valid route that is significantly longer than necessary.
 
 **Visualization:** Red polyline.
 
-### 2. A* Search with Traffic-Aware Cost
+### 2. Traffic-Aware A* Search
 
-A* Search is implemented using a traffic-aware edge cost function and a geographic heuristic.
+A custom A* implementation is developed using Python's `heapq` priority queue.
 
-The evaluation function is:
+The algorithm combines accumulated movement cost with a geographic heuristic:
 
 \[
 f(n) = g(n) + h(n)
@@ -162,108 +173,113 @@ f(n) = g(n) + h(n)
 
 Where:
 
-- **g(n):** Accumulated traffic-weighted movement cost from the starting node.
-- **h(n):** Geodesic straight-line distance from the current node to the destination.
+- \(g(n)\) is the accumulated traffic-weighted cost.
+- \(h(n)\) estimates the remaining geographic distance to the destination.
 
-#### Traffic-Aware Edge Weights
+#### Traffic-Weighted Edge Cost
 
-Each road segment receives a cost based on its geographic length and simulated traffic intensity.
+Each road segment receives a cost based on its length and simulated traffic category:
 
 \[
 w(e) = L(e) \times P(e)
 \]
 
-Where:
+Traffic penalties:
 
-- \(L(e)\) is the actual road segment length.
-- \(P(e)\) is the traffic penalty.
+| Traffic Level | Cost Multiplier |
+|---|---:|
+| Low | ×1 |
+| Medium | ×2 |
+| High | ×4 |
+| Blocked | Excluded |
 
-Traffic penalties are assigned as follows:
+For parallel edges between two nodes, the implementation selects the shortest accessible edge.
 
-- Low traffic: 1
-- Medium traffic: 2
-- High traffic: 4
+#### Geographic Heuristic
 
-Blocked edges are excluded from the search entirely.
+The heuristic uses geodesic distance calculated with `geopy`:
 
-#### Advantages
+```python
+from geopy.distance import geodesic
 
-- Considers both accumulated travel cost and estimated remaining distance.
-- Penalizes congested road segments.
-- Avoids blocked roads.
-- Searches for lower-cost alternatives.
-- Produces traffic-aware routes rather than arbitrary paths.
+def h(node_a, node_b):
+    ya, xa = Graph.nodes[node_a]["y"], Graph.nodes[node_a]["x"]
+    yb, xb = Graph.nodes[node_b]["y"], Graph.nodes[node_b]["x"]
 
-**Heuristic:** Geographic straight-line distance, designed to provide an admissible lower-bound estimate under the implemented edge-cost model.
+    return geodesic((ya, xa), (yb, xb)).km
+```
+
+The heuristic guides the search toward the destination while the accumulated cost accounts for road length and simulated traffic.
 
 **Visualization:** Lime-green polyline.
 
-## Route Evaluation & Comparison
+## Route Evaluation
 
-The project evaluates A* routes using two different distance metrics.
+The project calculates two distance-related metrics for A* routes.
 
-### 1. Real Distance
+### Real Geographic Distance
 
-The sum of the original geometric lengths of all road segments in the selected path.
+The sum of the original road segment lengths:
 
 \[
 D_{\text{real}} = \sum_{e \in P} L(e)
 \]
 
-### 2. Traffic-Weighted Distance
+### Traffic-Weighted Cost
 
-The sum of road lengths multiplied by their corresponding traffic penalties.
+The accumulated road length after applying traffic penalties:
 
 \[
 D_{\text{weighted}} =
 \sum_{e \in P} L(e) \times P(e)
 \]
 
-These metrics provide a way to compare route length against simulated traffic exposure.
+The second metric represents a traffic-weighted distance equivalent rather than actual travel distance or estimated travel time.
 
-They also help evaluate how traffic-aware optimization changes the selected route compared with the DFS result.
+These measurements help illustrate the effect of traffic penalties on route selection.
 
-## Interactive Visualization
+## Interactive Map Visualization
 
-The project uses `ipyleaflet` to display the road network and pathfinding results directly on an interactive map of Tehran.
+The project uses `ipyleaflet` to visualize different aspects of the routing system.
 
-The visualization includes:
+The generated maps include:
 
-- Simulated traffic heatmap.
-- DFS route (Red).
-- A* optimized route (Lime Green).
-- Draggable starting and destination markers.
-- Dynamic route updates based on marker positions.
-- Alternative paths resulting from road closures.
+- Simulated traffic intensity markers.
+- DFS path visualization.
+- Traffic-aware A* path visualization.
+- Interactive origin and destination markers.
+- Alternative routing behavior after road closures.
 
-The interactive interface makes it possible to observe how different algorithms respond to changes in the road network and traffic conditions.
+The routes are displayed using different colors:
+
+| Element | Color |
+|---|---|
+| High Traffic | Red |
+| Medium Traffic | Orange |
+| DFS Route | Red |
+| A* Route | Lime Green |
 
 ## Project Structure
-
-The following is a suggested repository structure; filenames can be adjusted to match the actual project files.
 
 ```text
 tehran-smart-route-planner/
 │
 ├── README.md
-│
-├── notebooks/
-│   └── pathfinding.ipynb
-│
-├── data/
-│   └── Tehran_2.osm.pbf
+├── university-distance.ipynb
+├── requirements.txt
 │
 ├── images/
 │   ├── traffic-map.png
 │   ├── dfs-route.png
 │   └── astar-route.png
 │
-├── requirements.txt
-│
-└── .gitignore
+└── data/
+    └── Tehran_2.osm.pbf  (not included)
 ```
 
-**Note:** The original OSM `.pbf` dataset can be large. It does not necessarily need to be committed to GitHub. A download/source reference and setup instructions can be provided instead.
+The directory structure above describes the recommended repository organization.
+
+The original OSM dataset is not included because of its potentially large file size. Users should obtain the dataset separately.
 
 ## Installation & Usage
 
@@ -271,7 +287,7 @@ tehran-smart-route-planner/
 
 - Python 3.x
 - Jupyter Notebook
-- OpenStreetMap Tehran `.osm.pbf` dataset
+- Tehran OpenStreetMap `.osm.pbf` dataset
 
 ### 1. Clone the Repository
 
@@ -284,61 +300,52 @@ cd tehran-smart-route-planner
 ### 2. Install Dependencies
 
 ```bash
-pip install pyrosm networkx osmnx ipyleaflet numpy
+pip install -r requirements.txt
 ```
-
-Install any additional dependencies required by the notebook.
 
 ### 3. Prepare the OSM Dataset
 
-Place the Tehran `.osm.pbf` dataset in the appropriate data directory and update the dataset path in the notebook if necessary.
+Obtain a Tehran road network dataset in `.osm.pbf` format and place it in the project directory.
 
-### 4. Run the Project
+Update the dataset path in the notebook if necessary.
 
-Launch Jupyter Notebook:
+### 4. Run the Notebook
 
 ```bash
 jupyter notebook
 ```
 
-Open the project notebook and execute the cells to load the road network, simulate traffic, configure road closures, and visualize the resulting routes.
+Open `university-distance.ipynb` and execute the cells sequentially.
 
-## Key Takeaways
+The notebook performs road network extraction, traffic simulation, road closure configuration, interactive marker initialization, and pathfinding.
 
-This project demonstrates the practical application of several computer science concepts:
+## Limitations & Considerations
 
-- Graph representation and traversal.
-- Classical search algorithms.
-- Heuristic-based search and route optimization.
-- Weighted graph algorithms.
-- Geographic coordinate processing.
-- Spatial simulation using Gaussian distributions.
-- Interactive data visualization.
-- Real-world geographic data integration.
+- Traffic conditions are synthetically generated and do not represent actual traffic measurements.
+- The Gaussian model approximates spatial traffic intensity around a single geographic center.
+- DFS does not optimize route length or traffic exposure.
+- Interactive marker movement requires rerunning the relevant notebook cells.
+- The current A* implementation uses different units for its heuristic (kilometers) and accumulated edge costs (meters), which should be standardized for a properly scaled heuristic.
+- The current road closure implementation marks outgoing edges of the selected directed graph node.
+- The current implementation is an academic prototype rather than a production-ready navigation system.
 
-It also highlights the practical differences between uninformed search (DFS) and heuristic-based search (A*) when applied to a large, real-world road network.
+## Potential Applications
 
-## Potential Real-World Applications
+The techniques implemented in this project can be extended to:
 
-The techniques explored in this project can be extended to:
-
-- Urban navigation systems.
-- Traffic-aware route planning.
+- Traffic-aware navigation systems.
 - Urban mobility analysis.
 - Emergency vehicle routing.
-- Delivery and logistics optimization.
-- Road network simulation.
+- Delivery route optimization.
+- Geographic network analysis.
+- Transportation simulation.
 
 ## Contributors
 
 - **Vahhab Bolandmanesh**
 - **Mohammadmehdi Kazemi**
 
-K. N. Toosi University of Technology
-
-## Academic Context
-
-**Course:** Data Structures & Algorithms / Algorithm Design (verify the official course title before publishing).
+**University:** K. N. Toosi University of Technology
 
 **Project Type:** Academic Team Project
 
@@ -346,4 +353,4 @@ K. N. Toosi University of Technology
 
 ---
 
-*Built to explore how classical graph algorithms can be applied to real-world geographic networks and dynamic routing problems.*
+*Exploring the intersection of graph algorithms, geographic data, and intelligent route planning.*
